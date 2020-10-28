@@ -582,9 +582,26 @@ waitx(int *wtime, int *rtime)
   }
 }
 
-struct proc * getptable_proc (void)
+// struct proc * getptable_proc (void)
+// {
+//   return ptable.proc;
+// }
+
+int
+chpr(int pid, int priority)
 {
-  return ptable.proc;
+  struct proc *p;
+  acquire(&ptable.lock);
+  for (p=ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->pid == pid)
+    {
+      p->priority = priority;
+      break;
+    }
+  }
+  release(&ptable.lock);
+  return pid;
 }
 
 int
@@ -623,5 +640,5 @@ getps()
   }
 
   release(&ptable.lock);
-  return 24;
+  return 23;
 }
