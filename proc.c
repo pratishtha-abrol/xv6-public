@@ -580,3 +580,8 @@ waitx(int *wtime, int *rtime)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
+
+struct proc * getptable_proc (void)
+{
+  return ptable.proc;
+};
