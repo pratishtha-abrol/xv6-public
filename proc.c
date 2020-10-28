@@ -584,4 +584,43 @@ waitx(int *wtime, int *rtime)
 struct proc * getptable_proc (void)
 {
   return ptable.proc;
-};
+}
+
+int
+getps()
+{
+  struct proc *p;
+
+  // Enable interrupts
+  sti();
+  acquire(&ptable.lock);
+  cprintf(" pid \t ppid \t state \t name \t \n");
+  for(p = ptable.proc; p < &ptable.proc[NPROC] && p->state != UNUSED; p++)
+  {
+    cprintf(" %d \t ", p->pid);
+    switch(p->state) {
+      case UNUSED:
+        cprintf("%s", "UNUSED");
+        break;
+      case EMBRYO:
+        cprintf("%s", "EMBRYO");
+        break;
+      case SLEEPING:
+        cprintf("%s", "SLEEPING");
+        break;
+      case RUNNABLE:
+        cprintf("%s", "RUNNABLE");
+        break;
+      case RUNNING:
+        cprintf("%s", "RUNNING");
+        break;
+      case ZOMBIE:
+        cprintf("%s", "ZOMBIE");
+        break;
+    }
+    cprintf(" \t %s  \n", p->name);
+  }
+
+  release(&ptable.lock);
+  return 24;
+}

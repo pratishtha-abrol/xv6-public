@@ -134,3 +134,9 @@ sys_getptable(void)
   }
   return 0;
 }
+
+int
+sys_getps(void)
+{
+  return getps();
+}

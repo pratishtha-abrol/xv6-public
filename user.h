@@ -25,6 +25,7 @@ int sleep(int);
 int uptime(void);
 int waitx(int *wtime, int *rtime);
 int getptable(int, void *);
+int getps(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
