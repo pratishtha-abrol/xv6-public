@@ -88,6 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->priority = 10;   // Default priority
 
   release(&ptable.lock);
 
@@ -594,10 +595,10 @@ getps()
   // Enable interrupts
   sti();
   acquire(&ptable.lock);
-  cprintf(" pid \t ppid \t state \t name \t \n");
+  cprintf(" pid \t priority \t state \t\t name \t \n");
   for(p = ptable.proc; p < &ptable.proc[NPROC] && p->state != UNUSED; p++)
   {
-    cprintf(" %d \t ", p->pid);
+    cprintf(" %d \t %d \t\t ", p->pid, p->priority);
     switch(p->state) {
       case UNUSED:
         cprintf("%s", "UNUSED");
