@@ -88,7 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  p->priority = 10;   // Default priority
+  p->priority = 60;   // Default priority
   p->stime = ticks;
   p->rtime = 0;
   p->etime = 0;
@@ -365,9 +365,35 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+#if SCHEDULER == FCFS
+      struct proc *minP = 0;
       if(p->state != RUNNABLE)
         continue;
+      
+      if(p->pid > 1)
+      {
+        if(minP != 0) {
+          if(p->stime < minP->stime) {
+            minP = p;
+          }
+          else {
+            minP = p;
+          }
+        }
+      }
+
+      if(minP !=0 && minP->state == RUNNABLE) {
+        p = minP;
+      }
+#endif
+
+#if SCHEDULER == DEFAUT
+      if(p->state != RUNNABLE)
+        continue;
+#endif
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -375,6 +401,7 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      p->n_run++;
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
@@ -383,6 +410,7 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+
     release(&ptable.lock);
 
   }
@@ -628,17 +656,20 @@ int
 set_priority(int priority, int pid)
 {
   struct proc *p;
+  int a;
+  
   acquire(&ptable.lock);
   for (p=ptable.proc; p < &ptable.proc[NPROC]; p++)
   {
     if(p->pid == pid)
     {
+      a = p->priority;
       p->priority = priority;
-      break;
+      release(&ptable.lock);
+      return a;
     }
   }
-  release(&ptable.lock);
-  return pid;
+  return -1;
 }
 
 int

@@ -71,6 +71,11 @@ QEMU = $(shell if which qemu > /dev/null; \
 	echo "***" 1>&2; exit 1)
 endif
 
+# ifndef SCHEDULER
+# SCHEDULER := DEFAULT
+# endif
+
+
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
@@ -89,6 +94,22 @@ endif
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
+
+SCHED_MACRO = -D SCHEDULER=DEFAULT
+
+ifeq ($(SCHEDULER), FCFS)
+SCHED_MACRO = -D SCHEDULER=FCFS
+endif
+
+ifeq ($(SCHEDULER), PBS)
+SCHED_MACRO = -D SCHEDULER=PBS
+endif
+
+ifeq ($(SCHEDULER), MLFQ)
+SCHED_MACRO = -D SCHEDULER=MLFQ
+endif
+
+CFLAGS += $(SCHED_MACRO)
 
 xv6.img: bootblock kernel
 	dd if=/dev/zero of=xv6.img count=10000
