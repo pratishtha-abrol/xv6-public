@@ -59,6 +59,12 @@
 
 int main (int argc, char *argv[])
 {
-    getps();
-    exit();
+    if(argc != 1) {
+        printf(1, "Usage: ps\n");
+        exit();
+    }
+    else {
+        getps();
+        exit();
+    }
 }

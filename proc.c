@@ -89,6 +89,9 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
   p->priority = 10;   // Default priority
+  p->stime = ticks;
+  p->rtime = 0;
+  p->etime = 0;
 
   release(&ptable.lock);
 
@@ -116,6 +119,21 @@ found:
   return p;
 }
 
+void
+calc_rtime(void)
+{
+  acquire(&ptable.lock);
+  for(struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    // p->etime++;
+    if(p->state == RUNNING)
+    {
+      p->rtime++;
+    }
+  }
+  release(&ptable.lock);
+}
+
 //PAGEBREAK: 32
 // Set up first user process.
 void
@@ -131,6 +149,7 @@ userinit(void)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
+  p->stime = ticks;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -235,6 +254,8 @@ exit(void)
   if(curproc == initproc)
     panic("init exiting");
 
+  curproc->etime = ticks;
+
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
@@ -296,6 +317,10 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+        p->etime = 0;
+        p->rtime = 0;
+        p->stime = 0;
+        p->priority = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -542,6 +567,7 @@ waitx(int *wtime, int *rtime)
   struct proc *curproc = myproc();
   
   acquire(&ptable.lock);
+  // int t = ticks;
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;
@@ -553,7 +579,7 @@ waitx(int *wtime, int *rtime)
         // Found one.
 
         // Add time field update
-        *wtime = p->etime - p->stime - p->rtime - p->iotime;
+        *wtime = p->etime - p->stime - p->rtime;
         *rtime = p->rtime;
 
         // Same as wait
@@ -566,6 +592,10 @@ waitx(int *wtime, int *rtime)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+        p->etime = 0;
+        p->rtime = 0;
+        p->stime = 0;
+        p->priority = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -588,7 +618,7 @@ waitx(int *wtime, int *rtime)
 // }
 
 int
-chpr(int pid, int priority)
+set_priority(int priority, int pid)
 {
   struct proc *p;
   acquire(&ptable.lock);
@@ -612,7 +642,8 @@ getps()
   // Enable interrupts
   sti();
   acquire(&ptable.lock);
-  cprintf(" pid \t priority \t state \t\t name \t \n");
+  // int t = ticks;
+  cprintf(" pid \t priority \t state \t\t name \t r_time    w_time    n_run    cur_g    q0   q1   q2   q3   q4\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC] && p->state != UNUSED; p++)
   {
     cprintf(" %d \t %d \t\t ", p->pid, p->priority);
@@ -636,7 +667,7 @@ getps()
         cprintf("%s", "ZOMBIE");
         break;
     }
-    cprintf(" \t %s  \n", p->name);
+    cprintf(" \t %s \t %d \t   %d \t\n", p->name, p->rtime, p->etime-p->stime-p->rtime);
   }
 
   release(&ptable.lock);
