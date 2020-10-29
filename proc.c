@@ -642,7 +642,7 @@ getps()
   // Enable interrupts
   sti();
   acquire(&ptable.lock);
-  // int t = ticks;
+  int t = ticks;
   cprintf(" pid \t priority \t state \t\t name \t r_time    w_time    n_run    cur_g    q0   q1   q2   q3   q4\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC] && p->state != UNUSED; p++)
   {
@@ -667,7 +667,7 @@ getps()
         cprintf("%s", "ZOMBIE");
         break;
     }
-    cprintf(" \t %s \t %d \t   %d \t\n", p->name, p->rtime, p->etime-p->stime-p->rtime);
+    cprintf(" \t %s \t %d \t   %d \t\n", p->name, p->rtime, t-p->stime-p->rtime);
   }
 
   release(&ptable.lock);
