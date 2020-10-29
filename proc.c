@@ -7,6 +7,17 @@
 #include "proc.h"
 #include "spinlock.h"
 
+struct proc* q0[64];
+struct proc* q1[64];
+struct proc* q2[64];
+struct proc* q3[64];
+struct proc* q4[64];
+int c0 =-1;
+int c1=-1;
+int c2=-1;
+int c3=-1;
+int c4=-1;
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -366,9 +377,15 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+// #if SCHEDULER == MLFQ
+//     int i, j;
+//     for (int i = 0; i < 5; i++) {
+
+//     }
+// #endif
 
 #if SCHEDULER == FCFS
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       struct proc *minP = 0;
       if(p->state != RUNNABLE)
         continue;
@@ -388,13 +405,6 @@ scheduler(void)
       if(minP !=0 && minP->state == RUNNABLE) {
         p = minP;
       }
-#endif
-
-#if SCHEDULER == DEFAUT
-      if(p->state != RUNNABLE)
-        continue;
-#endif
-
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -410,6 +420,60 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+#endif
+
+#if SCHEDULER == PBS
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      struct proc *highP = 0;
+      struct proc *p1;
+      if(p->state != RUNNABLE)
+        continue;
+      
+      highP = p;
+      for(p1 = ptable.proc; p1 < &ptable.proc[NPROC]; p1++) {
+        if(p1->state != RUNNABLE)
+          continue;
+        if(highP->priority > p1->priority)
+          highP = p1;
+      }
+      p=highP;
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+      p->n_run++;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+#endif
+
+#if SCHEDULER == DEFAUT
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+      p->n_run++;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+#endif
 
     release(&ptable.lock);
 
@@ -681,7 +745,7 @@ getps()
   sti();
   acquire(&ptable.lock);
   int t = ticks;
-  cprintf(" pid \t priority \t state \t\t name \t r_time    w_time    n_run    cur_q    q0   q1   q2   q3   q4\n");
+  cprintf(" pid \t priority \t state \t\t name \t r_time  w_time  n_run  cur_q \t q0   q1   q2   q3   q4\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC] && p->state != UNUSED; p++)
   {
     cprintf(" %d \t %d \t\t ", p->pid, p->priority);
@@ -705,7 +769,7 @@ getps()
         cprintf("%s", "ZOMBIE");
         break;
     }
-    cprintf(" \t %s \t %d \t   %d \t\t%d \t  %d  \t%d    %d    %d    %d    %d \n", p->name, p->rtime, t-p->stime-p->rtime, p->n_run, p->cur_q, p->q0, p->q1, p->q2, p->q3, p->q4);
+    cprintf(" \t %s \t %d \t %d \t %d \t %d \t %d    %d    %d    %d    %d \n", p->name, p->rtime, t-p->stime-p->rtime, p->n_run, p->cur_q, p->q0, p->q1, p->q2, p->q3, p->q4);
   }
 
   release(&ptable.lock);

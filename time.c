@@ -16,13 +16,13 @@ int main (int argc, char *argv[])
     if (pid == 0)
     {
         printf(1, "Timing %s\n", argv[1]);
-        exec(argv[1], argv);
+        exec(argv[1], argv+1);
         printf(1, "ecec %s failed.\n", argv[1]);
     }
     else if (pid > 0)
     {
         status = waitx(&a, &b);
-        printf(1, "Wait time = %d\nRun time = %d\nwith Status %d\n", a, b, status);
+        printf(1, "\nPID = %d\nWait time = %d\nRun time = %d\nwith Status %d\n", pid, a, b, status);
         exit();
     }
     
