@@ -7,7 +7,7 @@ int main (int argc, char *argv[])
 {
     if (argc <= 1)
     {
-        printf(2, "time: No command\n");
+        printf(1, "Usage: time <process>\n");
         exit();
     }
     int pid;
@@ -17,7 +17,7 @@ int main (int argc, char *argv[])
     {
         printf(1, "Timing %s\n", argv[1]);
         exec(argv[1], argv);
-        printf(2, "ecec %s failed.\n", argv[1]);
+        printf(1, "ecec %s failed.\n", argv[1]);
     }
     else if (pid > 0)
     {
