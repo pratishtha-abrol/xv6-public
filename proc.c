@@ -92,6 +92,13 @@ found:
   p->stime = ticks;
   p->rtime = 0;
   p->etime = 0;
+  p->q0 = 0;
+  p->q1 = 0;
+  p->q2 = 0;
+  p->q3 = 0;
+  p->q4 = 0;
+  p->n_run = 0;
+  p->cur_q = 0;
 
   release(&ptable.lock);
 
@@ -643,7 +650,7 @@ getps()
   sti();
   acquire(&ptable.lock);
   int t = ticks;
-  cprintf(" pid \t priority \t state \t\t name \t r_time    w_time    n_run    cur_g    q0   q1   q2   q3   q4\n");
+  cprintf(" pid \t priority \t state \t\t name \t r_time    w_time    n_run    cur_q    q0   q1   q2   q3   q4\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC] && p->state != UNUSED; p++)
   {
     cprintf(" %d \t %d \t\t ", p->pid, p->priority);
@@ -667,7 +674,7 @@ getps()
         cprintf("%s", "ZOMBIE");
         break;
     }
-    cprintf(" \t %s \t %d \t   %d \t\n", p->name, p->rtime, t-p->stime-p->rtime);
+    cprintf(" \t %s \t %d \t   %d \t\t%d \t  %d  \t%d    %d    %d    %d    %d \n", p->name, p->rtime, t-p->stime-p->rtime, p->n_run, p->cur_q, p->q0, p->q1, p->q2, p->q3, p->q4);
   }
 
   release(&ptable.lock);
