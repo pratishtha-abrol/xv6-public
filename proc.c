@@ -7,16 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
-struct proc* q0[64];
-struct proc* q1[64];
-struct proc* q2[64];
-struct proc* q3[64];
-struct proc* q4[64];
-int c0 =-1;
-int c1=-1;
-int c2=-1;
-int c3=-1;
-int c4=-1;
+int wake[] = {0,0,0,0,0};
 
 struct {
   struct spinlock lock;
@@ -103,11 +94,11 @@ found:
   p->stime = ticks;
   p->rtime = 0;
   p->etime = 0;
-  p->q0 = 0;
-  p->q1 = 0;
-  p->q2 = 0;
-  p->q3 = 0;
-  p->q4 = 0;
+  // p->q0 = 0;
+  // p->q1 = 0;
+  // p->q2 = 0;
+  // p->q3 = 0;
+  // p->q4 = 0;
   p->n_run = 0;
   p->cur_q = 0;
 
@@ -377,12 +368,98 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-// #if SCHEDULER == MLFQ
-//     int i, j;
-//     for (int i = 0; i < 5; i++) {
+#if SCHEDULER == MLFQ
+    int limits[]={1,2,4,8,16};
+    int count = 0;
+    for(int priority = 0;priority<5;priority++)
+      {
+        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+        {
+          if(priority!=0)
+          {
+            for(int i = 0;i<priority;i++)
+            {
+                if(wake[i])
+                {
+                  wake[i]=0;
+                  priority = i-1;
+                  break;
+                }
+            }
+          }
+          if(p->state != RUNNABLE)
+            continue;
+          if(p->priority == priority)
+          {
+            // Switch to chosen process.  It is the process's job
+            // to release ptable.lock and then reacquire it
+            // before jumping back to us.
+            c->proc = p;
+            int j;
+            for(j = p->currticks; j<limits[priority];j++)
+            {
+              if(priority == 0)
+              {
+                for(int i = 0; i<priority;i++)
+                {
+                  if(wake[i])
+                    break;
+                }
+              }
+              switchuvm(p);
+              p->state = RUNNING;
+              p->n_run++;
+              p->cur_q = priority;
+              p->ticks[priority]++;
 
-//     }
-// #endif
+              swtch(&(c->scheduler), p->context);
+              switchkvm();
+              p->ticks[priority]++;
+              p->cur_q = priority;
+              p->currticks++;
+              p->ran = 1;
+              count++;
+              if(count == 100) // Every second, refresh 
+              {
+                for(struct proc *tmp = ptable.proc; tmp<&ptable.proc[NPROC];tmp++)
+                {
+                  if(tmp->state !=RUNNING || tmp->priority == 0 || tmp->ran == 1)
+                  {
+                    tmp->ran = 0;
+                    continue;
+                  }
+                  tmp->priority--;
+                  // tmp->putime = ticks;
+                  tmp->currticks = 0;
+                  if(tmp->priority < priority)
+                  {
+                    wake[tmp->priority] = 1;
+                  }
+                }
+                count = 0;
+              }
+              if(p->state != RUNNING)
+              {
+                break;
+              }
+            }
+            if(j == limits[priority])
+            {
+              if(p->priority < 4)
+              {
+                p->priority = p->priority+1;
+                // p->putime = ticks;
+              }
+              p->currticks = 0;
+            }
+          }
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
+      }
+#endif
 
 #if SCHEDULER == FCFS
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -745,7 +822,7 @@ getps()
   sti();
   acquire(&ptable.lock);
   int t = ticks;
-  cprintf(" pid \t priority \t state \t\t name \t r_time  w_time  n_run  cur_q \t q0   q1   q2   q3   q4\n");
+  cprintf(" pid \t priority \t state \t\t r_time  w_time  n_run  cur_q \t q0   q1   q2   q3   q4\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC] && p->state != UNUSED; p++)
   {
     cprintf(" %d \t %d \t\t ", p->pid, p->priority);
@@ -769,7 +846,7 @@ getps()
         cprintf("%s", "ZOMBIE");
         break;
     }
-    cprintf(" \t %s \t %d \t %d \t %d \t %d \t %d    %d    %d    %d    %d \n", p->name, p->rtime, t-p->stime-p->rtime, p->n_run, p->cur_q, p->q0, p->q1, p->q2, p->q3, p->q4);
+    cprintf(" \t %d \t %d \t %d \t %d \t %d    %d    %d    %d    %d \n", p->rtime, t-p->stime-p->rtime, p->n_run, p->cur_q, p->ticks[0], p->ticks[1], p->ticks[2], p->ticks[3], p->ticks[4]);
   }
 
   release(&ptable.lock);

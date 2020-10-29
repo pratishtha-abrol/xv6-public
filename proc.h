@@ -55,6 +55,9 @@ struct proc {
   int n_run;                  // Number of times process was picked by scheduler
   int cur_q;                  // Current queue
   int q0, q1, q2, q3, q4;     // Tickes for the respective queue
+  int ticks[5];
+  int currticks;
+  int ran;
 };
 
 // Process memory is laid out contiguously, low addresses first:
