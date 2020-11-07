@@ -7,7 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
-int wake[] = {0,0,0,0,0};
+int wake[] = {1,2,4,8,16};
 
 struct {
   struct spinlock lock;
@@ -21,6 +21,10 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+
+// #ifdef MLFQ
+// struct pQueue qticks[5];
+// #endif
 
 void
 pinit(void)
@@ -92,15 +96,12 @@ found:
   p->pid = nextpid++;
   p->priority = 60;   // Default priority
   p->stime = ticks;
+  p->q_change_time = p->stime;
   p->rtime = 0;
   p->etime = 0;
-  // p->q0 = 0;
-  // p->q1 = 0;
-  // p->q2 = 0;
-  // p->q3 = 0;
-  // p->q4 = 0;
   p->n_run = 0;
   p->cur_q = 0;
+  p->ticks[0]=p->ticks[1]=p->ticks[2]=p->ticks[3]=p->ticks[4]=0;
 
   release(&ptable.lock);
 
@@ -357,9 +358,26 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
-  struct cpu *c = mycpu();
-  c->proc = 0;
+  // struct proc *p;
+  // struct cpu *c = mycpu();
+  // c->proc = 0;
+
+// #if SCHEDULER == MLFQ
+// #ifdef MLFQ
+//   cprintf("MLFQ : \n");
+// #endif
+// // #if SCHEDULER == FCFS
+// #ifdef FCFS
+//   cprintf("FCFS : \n");
+// #endif
+// // #if SCHEDULER == PBS
+// #ifdef PBS
+//   cprintf("PBS : \n");
+// #endif
+// // #if SCHEDULER == DEFAULT
+// #ifdef DEFAULT
+//   cprintf("RR : \n");
+// #endif
   
   for(;;){
     // Enable interrupts on this processor.
@@ -368,100 +386,64 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-#if SCHEDULER == MLFQ
-    int limits[]={1,2,4,8,16};
-    int count = 0;
-    for(int priority = 0;priority<5;priority++)
-      {
-        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-        {
-          if(priority!=0)
-          {
-            for(int i = 0;i<priority;i++)
-            {
-                if(wake[i])
-                {
-                  wake[i]=0;
-                  priority = i-1;
-                  break;
-                }
-            }
-          }
-          if(p->state != RUNNABLE)
-            continue;
-          if(p->priority == priority)
-          {
-            // Switch to chosen process.  It is the process's job
-            // to release ptable.lock and then reacquire it
-            // before jumping back to us.
-            c->proc = p;
-            int j;
-            for(j = p->currticks; j<limits[priority];j++)
-            {
-              if(priority == 0)
-              {
-                for(int i = 0; i<priority;i++)
-                {
-                  if(wake[i])
-                    break;
-                }
-              }
-              switchuvm(p);
-              p->state = RUNNING;
-              p->n_run++;
-              p->cur_q = priority;
-              p->ticks[priority]++;
-
-              swtch(&(c->scheduler), p->context);
-              switchkvm();
-              p->ticks[priority]++;
-              p->cur_q = priority;
-              p->currticks++;
-              p->ran = 1;
-              count++;
-              if(count == 100) // Every second, refresh 
-              {
-                for(struct proc *tmp = ptable.proc; tmp<&ptable.proc[NPROC];tmp++)
-                {
-                  if(tmp->state !=RUNNING || tmp->priority == 0 || tmp->ran == 1)
-                  {
-                    tmp->ran = 0;
-                    continue;
-                  }
-                  tmp->priority--;
-                  // tmp->putime = ticks;
-                  tmp->currticks = 0;
-                  if(tmp->priority < priority)
-                  {
-                    wake[tmp->priority] = 1;
-                  }
-                }
-                count = 0;
-              }
-              if(p->state != RUNNING)
-              {
-                break;
-              }
-            }
-            if(j == limits[priority])
-            {
-              if(p->priority < 4)
-              {
-                p->priority = p->priority+1;
-                // p->putime = ticks;
-              }
-              p->currticks = 0;
-            }
-          }
-
-          // Process is done running for now.
-          // It should have changed its p->state before coming back.
-          c->proc = 0;
+// #if SCHEDULER == MLFQ
+#ifdef MLFQ
+    struct proc *p;
+    struct cpu *c = mycpu();
+    c->proc = 0;
+    struct proc *highP = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if(p->state!=RUNNABLE)
+        continue;
+      if (p->cur_q != 4) {
+        p->cur_q+=1;
+        p->ticks[p->cur_q-1]= ticks - p->q_change_time;
+        p->q_change_time = ticks;
+        p->wtime = 0;
+      }
+    }
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if(ticks - p->q_change_time > 1500) {
+        if (p->cur_q != 0) {
+          p->cur_q-=1;
+          p->ticks[p->cur_q-1]= ticks - p->q_change_time;
+          p->q_change_time = ticks;
+          p->wtime = 0;
         }
       }
-#endif
+    }
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if(p->state != RUNNABLE)
+        continue;
+      highP = p;
+      if (p->cur_q < highP->cur_q) highP=p;
+      else if (p->cur_q == highP->cur_q)
+      {
+        if(p->ticks[p->cur_q] < highP->ticks[highP->cur_q]) highP=p;
+      }
+    }
+    p=highP;
+    // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+      p->n_run++;
 
-#if SCHEDULER == FCFS
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+// #endif
+#else
+// #if SCHEDULER == FCFS
+#ifdef FCFS
+    struct proc *p;
+    struct cpu *c = mycpu();
+    c->proc = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       struct proc *minP = 0;
       if(p->state != RUNNABLE)
@@ -497,9 +479,13 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-#endif
-
-#if SCHEDULER == PBS
+// #endif
+#else
+// #if SCHEDULER == PBS
+#ifdef PBS
+    struct proc *p;
+    struct cpu *c = mycpu();
+    c->proc = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       struct proc *highP = 0;
       struct proc *p1;
@@ -529,9 +515,13 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-#endif
-
-#if SCHEDULER == DEFAUT
+// #endif
+#else
+// #if SCHEDULER == DEFAUT
+#ifdef DEFAULT
+    struct proc *p;
+    struct cpu *c = mycpu();
+    c->proc = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -550,6 +540,9 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+#endif
+#endif
+#endif
 #endif
 
     release(&ptable.lock);
@@ -823,30 +816,32 @@ getps()
   acquire(&ptable.lock);
   int t = ticks;
   cprintf(" pid \t priority \t state \t\t r_time  w_time  n_run  cur_q \t q0   q1   q2   q3   q4\n");
-  for(p = ptable.proc; p < &ptable.proc[NPROC] && p->state != UNUSED; p++)
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
   {
-    cprintf(" %d \t %d \t\t ", p->pid, p->priority);
-    switch(p->state) {
-      case UNUSED:
-        cprintf("%s", "UNUSED");
-        break;
-      case EMBRYO:
-        cprintf("%s", "EMBRYO");
-        break;
-      case SLEEPING:
-        cprintf("%s", "SLEEPING");
-        break;
-      case RUNNABLE:
-        cprintf("%s", "RUNNABLE");
-        break;
-      case RUNNING:
-        cprintf("%s", "RUNNING");
-        break;
-      case ZOMBIE:
-        cprintf("%s", "ZOMBIE");
-        break;
+    if (p->state != UNUSED) {
+      cprintf(" %d \t %d \t\t ", p->pid, p->priority);
+      switch(p->state) {
+        case UNUSED:
+          cprintf("%s", "UNUSED");
+          break;
+        case EMBRYO:
+          cprintf("%s", "EMBRYO");
+          break;
+        case SLEEPING:
+          cprintf("%s", "SLEEPING");
+          break;
+        case RUNNABLE:
+          cprintf("%s", "RUNNABLE");
+          break;
+        case RUNNING:
+          cprintf("%s", "RUNNING");
+          break;
+        case ZOMBIE:
+          cprintf("%s", "ZOMBIE");
+          break;
+      }
+      cprintf(" \t %d \t %d \t %d \t %d \t %d    %d    %d    %d    %d \n", p->rtime, t-p->stime-p->rtime, p->n_run, p->cur_q, p->ticks[0], p->ticks[1], p->ticks[2], p->ticks[3], p->ticks[4]);
     }
-    cprintf(" \t %d \t %d \t %d \t %d \t %d    %d    %d    %d    %d \n", p->rtime, t-p->stime-p->rtime, p->n_run, p->cur_q, p->ticks[0], p->ticks[1], p->ticks[2], p->ticks[3], p->ticks[4]);
   }
 
   release(&ptable.lock);

@@ -95,21 +95,35 @@ ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
 
-SCHED_MACRO = -D SCHEDULER=DEFAULT
+# SCHED_MACRO = -D SCHEDULER=DEFAULT
 
-ifeq ($(SCHEDULER), FCFS)
-SCHED_MACRO = -D SCHEDULER=FCFS
+# ifeq ($(SCHEDULER), FCFS)
+# SCHED_MACRO = -D SCHEDULER=FCFS
+# endif
+
+# ifeq ($(SCHEDULER), PBS)
+# SCHED_MACRO = -D SCHEDULER=PBS
+# endif
+
+# ifeq ($(SCHEDULER), MLFQ)
+# SCHED_MACRO = -D SCHEDULER=MLFQ
+# endif
+
+# CFLAGS += $(SCHED_MACRO)
+
+ifeq ($(SCHEDULER),FCFS)
+	CFLAGS +="-DFCFS"
+else
+	ifeq ($(SCHEDULER),PBS)
+		CFLAGS +="-DPBS"
+	else
+		ifeq ($(SCHEDULER),MLFQ)
+			CFLAGS +="-DMLFQ"
+		else
+			CFLAGS +="-DDEFAULT"
+		endif	
+	endif
 endif
-
-ifeq ($(SCHEDULER), PBS)
-SCHED_MACRO = -D SCHEDULER=PBS
-endif
-
-ifeq ($(SCHEDULER), MLFQ)
-SCHED_MACRO = -D SCHEDULER=MLFQ
-endif
-
-CFLAGS += $(SCHED_MACRO)
 
 xv6.img: bootblock kernel
 	dd if=/dev/zero of=xv6.img count=10000

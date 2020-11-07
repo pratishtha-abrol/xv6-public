@@ -50,16 +50,20 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  int stime, etime, rtime;            // Add time values
+  int stime, etime, rtime, wtime;            // Add time values
   int priority;               // Priority order (0-20)
   int n_run;                  // Number of times process was picked by scheduler
   int cur_q;                  // Current queue
   int q0, q1, q2, q3, q4;     // Tickes for the respective queue
   int ticks[5];
   int currticks;
-  int ran;
+  int q_change_time;
 };
 
+
+// struct pQueue{
+//   int curSize;
+// };
 // Process memory is laid out contiguously, low addresses first:
 //   text
 //   original data and bss
